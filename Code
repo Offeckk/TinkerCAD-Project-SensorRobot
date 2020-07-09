@@ -1,0 +1,176 @@
+#include <Servo.h>
+
+#define PIN_PIR_RIGHT				13
+#define PIN_PIR_LEFT				12
+#define PIN_PHOTORES				A0
+#define PIN_REDLED					11
+#define PIN_BLUELED					10
+#define PIN_GREENLED				 9
+#define PIN_PIEZO       			 8
+#define PIN_GREENLED_INDICATOR		 6
+#define PIN_BLUELED_INDICATOR		 5
+#define PIN_REDLED_INDICATOR		 3
+#define PIN_MOTOR					A1
+#define PIN_SERVO					 2
+
+#define ON							 1
+#define OFF							 0
+
+#define DEBUG 1
+
+int inches = 0;
+int cm = 0;
+Servo frontServo;
+
+//Initial code(начален код)
+void setup() {
+ 	Serial.begin(115200);
+	Serial.println("Robot initialized.");
+  
+  	pinMode(PIN_PIR_LEFT, INPUT);
+    pinMode(PIN_PIR_RIGHT, INPUT);
+  	pinMode(PIN_PHOTORES, INPUT);
+  
+    pinMode(PIN_REDLED, OUTPUT);
+    pinMode(PIN_GREENLED, OUTPUT);
+    pinMode(PIN_BLUELED, OUTPUT);
+  
+    pinMode(A1, OUTPUT);
+    frontServo.attach(PIN_SERVO); 
+}
+
+//takes the ambient brightness from the photoresistor and returns it as an int value
+//взима околната яркост и я връща като integer стойност
+int getBrightness() {
+  int brightness = 1023 - analogRead(PIN_PHOTORES);
+#ifdef DEBUG
+    Serial.print("Brightness: ");
+    Serial.println(brightness);
+#endif
+  return brightness;
+}
+
+//settings for RGB pins(настройки за RGB пиновете)
+void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
+ {
+  analogWrite(PIN_REDLED, red_light_value);
+  analogWrite(PIN_GREENLED, green_light_value);
+  analogWrite(PIN_BLUELED, blue_light_value);
+}
+
+//settings for the RGB pins for the Indicator LED
+//настройки за RGB пиновете за индикаторната лампичка
+void RGB_color_INDICATOR(int red_light_value, int green_light_value, int blue_light_value)
+ {
+  analogWrite(PIN_REDLED_INDICATOR, red_light_value);
+  analogWrite(PIN_GREENLED_INDICATOR, green_light_value);
+  analogWrite(PIN_BLUELED_INDICATOR, blue_light_value);
+}
+
+//colour-changing sequence for the RGB LEDs
+//цветовата последователност за RGB LED-овете
+void RunRGB(){
+RGB_color(0,255,230); //blue(синьо)
+    delay(1000);
+RGB_color(255,0,0); //red(червено)
+    delay(1000);
+RGB_color(255,205,0); //orange(оранжево)
+    delay(1000);
+RGB_color(247,255,0); //yellow(жълто)
+    delay(1000);
+RGB_color(0,255,0); //green(зелено)
+    delay(1000);
+RGB_color(0,255,255); //indigo(тъмно синьо)
+    delay(1000);
+RGB_color(255,0,222); //pink(розово)
+    delay(1000);
+RGB_color(145,0,255); //purple(лилаво)
+    delay(1000);
+RGB_color(255,255,255); //white(бяло)
+    delay(1000);
+}
+
+//takes the distance from the ultrasonic sensor and returns it as long
+//взима разстоянието от ултразвуковия сензор и го връща като long стойност
+long readUltrasonicDistance(int triggerPin, int echoPin)
+{
+  pinMode(triggerPin, OUTPUT);
+  digitalWrite(triggerPin, LOW);
+  //delayMicroseconds(2);
+  digitalWrite(triggerPin, HIGH);
+  //delayMicroseconds(10);
+  digitalWrite(triggerPin, LOW);
+  pinMode(echoPin, INPUT);
+  //Reads the echo pin, and returns the sound wave travel time in microseconds
+  //Прочита ехо пина и връща пробега на звуковата вълна в микросекунди
+  Serial.print(inches); // |
+  Serial.print("in, "); // |  за
+  Serial.print(cm);     // | дебъг
+  Serial.println("cm"); // |
+  return pulseIn(echoPin, HIGH);
+}
+
+//detects whether there is an object to the left of the robot
+//проверява дали има обект отляво
+int ObjectDetectedLeft() {
+  char detected_object = digitalRead(PIN_PIR_LEFT);
+  
+#ifdef DEBUG
+	if(detected_object)
+      Serial.println("Object in front left detected!");
+#endif
+  return detected_object;  
+}
+
+//detects whether there is an object to the right of the robot
+//проверява дали има обект отдясно
+int ObjectDetectedRight() {
+  char detected_object = digitalRead(PIN_PIR_RIGHT);
+  
+#ifdef DEBUG
+	if(detected_object)
+      Serial.println("Object in front right detected!");
+#endif
+  return detected_object;  
+}
+
+void loop() {
+  int brightness = getBrightness();
+  cm = 0.01723 * readUltrasonicDistance(7, 7); //отчетва времето за отговор в сантиметри 
+  inches = (cm / 2.54); // преобразува сантиметри в инчове
+
+  if(cm >= 190 && cm < 312) {
+    RGB_color_INDICATOR(0,255,0);
+    digitalWrite(A1, HIGH); //starts the motors(пуска моторите)
+    
+    if(brightness < 950){
+       RunRGB();	  
+  }  
+  else {
+    if(brightness < 950)
+        RGB_color(255,255,255);      
+         }   
+  }
+  else{
+     RGB_color_INDICATOR(255,0,0);
+     digitalWrite(A1, LOW);//stops the motors(спира моторите)
+  }
+  
+  if(cm < 190 && cm > 0){
+        Serial.println("Object too close!");
+ 	    tone(PIN_PIEZO,0); //starts the piezo(пуска пиезото)
+        digitalWrite(A1, LOW);//stops the motors(спира моторите)
+  }
+  else{
+    noTone(PIN_PIEZO); //stops the piezo(спира пиезото)
+  }
+  if(ObjectDetectedLeft()){
+  frontServo.write(125); //turns the servo left(завива сервото наляво)
+  }
+  if(ObjectDetectedRight()){
+  frontServo.write(62); //turns the servo right(завива сервото надясно)
+  }
+  if(!ObjectDetectedLeft() && !ObjectDetectedRight()){
+  frontServo.write(93); //resets the servo to its starting position(нулира позицията на сервото)
+  }
+}
